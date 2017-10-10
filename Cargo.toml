@@ -1,0 +1,11 @@
+[package]
+name = "midcat"
+version = "0.1.0"
+authors = ["Ng Guoyou <ng.guoyou@gmail.com>"]
+
+[dependencies]
+cpal = "0.4.5"
+futures = "0.1.14"
+
+[dependencies.synthrs]
+git = "https://github.com/gyng/synthrs"
