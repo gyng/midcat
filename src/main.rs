@@ -22,6 +22,21 @@ impl Executor for MyExecutor {
     }
 }
 
+struct MidIter {
+    samples: Vec<f64>,
+    i: usize
+}
+
+impl Iterator for MidIter {
+    type Item = f64;
+
+    fn next(&mut self) -> Option<f64> {
+        self.i = self.i + 1;
+        self.samples.get(self.i - 1).cloned()
+    }
+}
+
+
 fn main() {
     let endpoint = cpal::get_default_endpoint().unwrap();
     let format = endpoint
@@ -35,9 +50,13 @@ fn main() {
     let (mut voice, stream) = cpal::Voice::new(&endpoint, &format, &event_loop).unwrap();
 
     // This works
-    let mut data_source = SamplesIter::new(format.samples_rate.0 as u64, Box::new(SineWave(440.0)));
+    // let mut data_source = SamplesIter::new(format.samples_rate.0 as u64, Box::new(SineWave(440.0)));
 
-    // let mut data_source = make_samples_from_midi(44100, "mountainking.mid").iter().cloned();
+    let samples = make_samples_from_midi(format.samples_rate.0 as usize, "mountainking.mid");
+    let mut data_source = MidIter { samples: samples, i: 0 };
+
+    // This doesn't
+    // let mut data_source = samples.iter().cloned();
     // let mut data_source = Arc::new(make_samples_from_midi(44100, "mountainking.mid").iter().cloned());
 
     task::spawn(stream.for_each(move |buffer| -> Result<_, ()> {
