@@ -62,8 +62,7 @@ fn main() {
     let (mut voice, stream) =
         cpal::Voice::new(&endpoint, &format, &event_loop).expect("failed to create voice/stream");
 
-    let source_samples =
-        make_samples_from_midi(format.samples_rate.0 as usize, &args.arg_file);
+    let source_samples = make_samples_from_midi(format.samples_rate.0 as usize, &args.arg_file);
     let mut data_source = Arc::new(source_samples.into_iter());
 
     // let mut data_source = SamplesIter::new(format.samples_rate.0 as u64, Box::new(SineWave(440.0)));
@@ -74,13 +73,28 @@ fn main() {
 
         match buffer {
             cpal::UnknownTypeBuffer::U16(mut _buffer) => {
-                unimplemented!();
+                let zipped = buffer.chunks_mut(channels).zip(&mut data_source);
+                if zipped.size_hint() == (0, Some(0)) {
+                    ::std::process::exit(0);
+                }
+
+                for (sample, value) in zipped {
+                    for out in sample.iter_mut() {
+                        *out = quantize::<u16>(args.flag_volume as f64 * value);
+                    }
+                }
             }
-            cpal::UnknownTypeBuffer::I16(mut _buffer) => {
-                // `quantize` can be used to convert the f64 to i16/u16, but
-                // since it cannot be tested on my machines it is left unimplemented
-                // quantize::<i16>(value); // might be really loud
-                unimplemented!();
+            cpal::UnknownTypeBuffer::I16(mut buffer) => {
+                let zipped = buffer.chunks_mut(channels).zip(&mut data_source);
+                if zipped.size_hint() == (0, Some(0)) {
+                    ::std::process::exit(0);
+                }
+
+                for (sample, value) in zipped {
+                    for out in sample.iter_mut() {
+                        *out = quantize::<i16>(args.flag_volume as f64 * value);
+                    }
+                }
             }
             cpal::UnknownTypeBuffer::F32(mut buffer) => {
                 let zipped = buffer.chunks_mut(channels).zip(&mut data_source);
