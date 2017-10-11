@@ -7,5 +7,9 @@ authors = ["Ng Guoyou <ng.guoyou@gmail.com>"]
 cpal = "0.4.5"
 futures = "0.1.14"
 
+docopt = "0.8"
+serde = "1.0" # if you're using `derive(Deserialize)`
+serde_derive = "1.0" # if you're using `derive(Deserialize)`
+
 [dependencies.synthrs]
 git = "https://github.com/gyng/synthrs"
