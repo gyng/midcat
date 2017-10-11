@@ -14,27 +14,27 @@ use futures::task;
 use futures::task::Executor;
 use futures::task::Run;
 
-use synthrs::synthesizer::make_samples_from_midi;
-// use synthrs::wave::SineWave;
-// use synthrs::synthesizer::SamplesIter;
+use synthrs::synthesizer::{make_samples_from_midi, quantize};
 
 const USAGE: &'static str = "
 Play a MIDI file, ignoring instruments
 
 Usage:
-  midcat <file> [--volume=<frac>]
+  midcat <file> [--volume=<frac>] [--speed=<times>]
   midcat (-h | --help)
   midcat --version
 
 Options:
-  -h --help     Show this screen
+  -h --help                   Show this screen
   -v=<frac> --volume=<frac>   Play volume as a fraction (linear scale) [default: 1.0]
+  -s=<times> --speed=<times>  Play speed as a fraction [default: 1.0]
 ";
 
 #[derive(Debug, Deserialize)]
 struct Args {
     arg_file: String,
-    flag_volume: f32,
+    flag_volume: f64,
+    flag_speed: f64,
 }
 
 struct MyExecutor;
@@ -50,6 +50,8 @@ fn main() {
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
+    assert!(args.flag_speed > 0.0);
+
     let endpoint = cpal::get_default_endpoint().unwrap();
     let format = endpoint
         .get_supported_formats_list()
@@ -62,17 +64,23 @@ fn main() {
     let (mut voice, stream) =
         cpal::Voice::new(&endpoint, &format, &event_loop).expect("failed to create voice/stream");
 
-    let source_samples = make_samples_from_midi(format.samples_rate.0 as usize, &args.arg_file);
+    let sample_rate = f64::from(format.samples_rate.0) / args.flag_speed;
+    let source_samples = make_samples_from_midi(sample_rate as usize, &args.arg_file);
     let mut data_source = Arc::new(source_samples.into_iter());
 
-    // let mut data_source = SamplesIter::new(format.samples_rate.0 as u64, Box::new(SineWave(440.0)));
+    // This is for a simple waveform function
+    // let mut data_source =
+    //      synthrs::synthesizer::SamplesIter::new(
+    //          sample_rate as u64,
+    //          Box::new(synthrs::wave::SineWave(440.0))
+    //     );
 
     task::spawn(stream.for_each(move |buffer| -> Result<_, ()> {
         let mut data_source = Arc::get_mut(&mut data_source).expect("failed to get arc");
         let channels = format.channels.len();
 
         match buffer {
-            cpal::UnknownTypeBuffer::U16(mut _buffer) => {
+            cpal::UnknownTypeBuffer::U16(mut buffer) => {
                 let zipped = buffer.chunks_mut(channels).zip(&mut data_source);
                 if zipped.size_hint() == (0, Some(0)) {
                     ::std::process::exit(0);
@@ -80,7 +88,7 @@ fn main() {
 
                 for (sample, value) in zipped {
                     for out in sample.iter_mut() {
-                        *out = quantize::<u16>(args.flag_volume as f64 * value);
+                        *out = quantize::<u16>(args.flag_volume * value);
                     }
                 }
             }
@@ -92,7 +100,7 @@ fn main() {
 
                 for (sample, value) in zipped {
                     for out in sample.iter_mut() {
-                        *out = quantize::<i16>(args.flag_volume as f64 * value);
+                        *out = quantize::<i16>(args.flag_volume * value);
                     }
                 }
             }
@@ -104,7 +112,7 @@ fn main() {
 
                 for (sample, value) in zipped {
                     for out in sample.iter_mut() {
-                        *out = args.flag_volume * value as f32;
+                        *out = (args.flag_volume * value) as f32;
                     }
                 }
             }
