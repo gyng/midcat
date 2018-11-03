@@ -5,8 +5,8 @@ extern crate synthrs;
 extern crate serde_derive;
 extern crate docopt;
 
-use std::thread;
 use std::sync::Arc;
+use std::thread;
 
 use docopt::Docopt;
 use futures::stream::Stream;
@@ -14,7 +14,7 @@ use futures::task;
 use futures::task::Executor;
 use futures::task::Run;
 
-use synthrs::synthesizer::{make_samples_from_midi, quantize};
+use synthrs::synthesizer::{make_samples_from_midi_file, quantize};
 
 const USAGE: &'static str = "
 Play a MIDI file, ignoring instruments
@@ -65,7 +65,12 @@ fn main() {
         cpal::Voice::new(&endpoint, &format, &event_loop).expect("failed to create voice/stream");
 
     let sample_rate = f64::from(format.samples_rate.0) / args.flag_speed;
-    let source_samples = make_samples_from_midi(sample_rate as usize, &args.arg_file);
+    let source_samples = make_samples_from_midi_file(
+        synthrs::wave::sine_wave,
+        sample_rate as usize,
+        true,
+        &args.arg_file,
+    );
     let mut data_source = Arc::new(source_samples.into_iter());
 
     // This is for a simple waveform function
@@ -88,7 +93,7 @@ fn main() {
 
                 for (sample, value) in zipped {
                     for out in sample.iter_mut() {
-                        *out = quantize::<u16>(args.flag_volume * value);
+                        *out = quantize::<u16>(args.flag_volume * value[0]);
                     }
                 }
             }
@@ -100,7 +105,7 @@ fn main() {
 
                 for (sample, value) in zipped {
                     for out in sample.iter_mut() {
-                        *out = quantize::<i16>(args.flag_volume * value);
+                        *out = quantize::<i16>(args.flag_volume * value[0]);
                     }
                 }
             }
@@ -112,7 +117,7 @@ fn main() {
 
                 for (sample, value) in zipped {
                     for out in sample.iter_mut() {
-                        *out = (args.flag_volume * value) as f32;
+                        *out = (args.flag_volume * value[0]) as f32;
                     }
                 }
             }
@@ -120,7 +125,9 @@ fn main() {
         Ok(())
     })).execute(executor);
 
-    thread::spawn(move || { voice.play(); });
+    thread::spawn(move || {
+        voice.play();
+    });
 
     event_loop.run();
 }
